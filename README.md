@@ -6,7 +6,7 @@ git clone https://github.com/fabianpingel/Webserver_DynDNS.git Webserver_DynDNS
 ```
 ## 2. Skript *setup.sh* ausführen
 ```
-chmod +x setup.sh && ./setup.sh
+chmod +x setup.sh && sudo ./setup.sh
 ```
 ## 3. Einfügen des ```CLOUDFLARE_API_TOKEN```
 3.1. Erstellen der ```.env```-Datei:
