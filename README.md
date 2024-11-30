@@ -11,11 +11,11 @@ chmod +x setup.sh && sudo ./setup.sh
 ## 3. Einfügen des ```CLOUDFLARE_API_TOKEN```
 3.1. Erstellen der ```.env```-Datei:
 ```
-touch /opt/scripts/dyndns/.env
+sudo touch /opt/scripts/dyndns/.env
 ```
 3.2 Öffnen der ```.env```-Datei mit einem Texteditor (z.B. nano)
 ```
-nano /opt/scripts/dyndns/.env
+sudo nano /opt/scripts/dyndns/.env
 ```
 3.3 API-Token einfügen
 ```
