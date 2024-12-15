@@ -4,149 +4,136 @@ import os
 import sys
 import re
 from datetime import datetime
-from typing import List, Optional
-import CloudFlare
+import traceback
+import cloudflare
+from cloudflare import Cloudflare
 from dotenv import load_dotenv
 
+# Log-Datei Pfad
 LOG_FILE_PATH = "/opt/scripts/dyndns/update.py.log"
 
 # Lade die Umgebungsvariablen aus der .env-Datei
 load_dotenv()
 
-# Lese den Cloudflare API-Token
-CLOUDFLARE_API_TOKEN = os.getenv('CLOUDFLARE_API_TOKEN')
-
-# Sicherstellen, dass der Token korrekt geladen wurde
-if CLOUDFLARE_API_TOKEN is None:
-    print("Fehler: Der Cloudflare API-Token ist nicht gesetzt!")
-    exit(1)
-
-
-def load_api_token(zone_name: str) -> Optional[str]:
-    """
-    Loads the Cloudflare API token from the .env file or environment variables.
-    :param zone_name: The name of the DNS zone.
-    :return: The API token or None if not found.
-    """
-    env_var_name = f"CLOUDFLARE_TOKEN_{zone_name.replace('.', '_').upper()}"
-    return os.getenv(env_var_name)
-
-# Test: Zugriff auf den Token
-print(load_api_token("pingel-ai-solutions.de"))
-
 def file_log(msg: str) -> None:
     """
-    Logs a message to a predefined log file with a timestamp.
-    :param msg: The message to log.
+    Schreibt eine Lognachricht mit Zeitstempel in die vordefinierte Log-Datei.
+    :param msg: Die zu loggende Nachricht.
+    """
+    try:
+        with open(LOG_FILE_PATH, "a") as log_file:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            log_file.write(f"{timestamp} - {msg}\n")
+    except IOError as e:
+        sys.stderr.write(f"Log-Fehler: {e}\n")
+
+def log_error(exception: Exception) -> None:
+    """
+    Protokolliert Fehler mit vollständigem Stacktrace.
+    :param exception: Der aufgetretene Fehler.
     """
     with open(LOG_FILE_PATH, "a") as log_file:
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        log_file.write(f"{timestamp} - {msg}\n")
+        log_file.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - FEHLER: {exception}\n")
+        log_file.write(traceback.format_exc() + "\n")
 
 def validate_ip(ip: str) -> bool:
     """
-    Validates if the given string is a valid IPv4 address.
-    :param ip: The IP address to validate.
-    :return: True if valid, False otherwise.
+    Validiert, ob die gegebene Zeichenkette eine gültige IPv4-Adresse ist.
+    :param ip: Die zu überprüfende IP-Adresse.
+    :return: True, wenn die IP-Adresse gültig ist, sonst False.
     """
     ip_pattern = r"^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])(\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])){3}$"
     return re.match(ip_pattern, ip) is not None
 
-def get_zone(cf: CloudFlare.CloudFlare, zone_name: str) -> dict:
+def load_env_variable(var_name: str) -> str:
     """
-    Fetches the zone information from Cloudflare for the given zone name.
-    :param cf: CloudFlare API client.
-    :param zone_name: The name of the DNS zone.
-    :return: Zone information as a dictionary.
-    :raises: Exception if the zone is not found or the API call fails.
+    Lädt eine Umgebungsvariable und prüft, ob sie gültig ist.
+    :param var_name: Der Name der Umgebungsvariable.
+    :return: Der Wert der Umgebungsvariable.
+    :raises RuntimeError: Wenn die Variable nicht gesetzt ist.
     """
+    value = os.environ.get(var_name)
+    if not value:
+        raise RuntimeError(f"Fehlende Umgebungsvariable: {var_name}")
+    return value
+        
+def update_dns_records(cf: Cloudflare, zone_id: str, ip_address: str) -> bool:
+    """
+    Aktualisiert alle DNS-A-Records einer Zone mit der angegebenen IP-Adresse.
+    :param cf: Cloudflare API-Client.
+    :param zone_id: Die ID der DNS-Zone.
+    :param ip_address: Die neue IP-Adresse für A-Records.
+    :return: True, wenn mindestens ein Record aktualisiert wurde, False sonst.
+    """
+    updated_any = False
     try:
-        zones = cf.zones.get(params={'name': zone_name})
-        if len(zones) != 1:
-            raise ValueError(f"Zone lookup returned {len(zones)} results for {zone_name}.")
-        return zones[0]
-    except CloudFlare.exceptions.CloudFlareAPIError as e:
-        raise RuntimeError(f"CloudFlare API error while fetching zone '{zone_name}': {e}")
-    except Exception as e:
-        raise RuntimeError(f"Error fetching zone '{zone_name}': {e}")
+        dns_records = cf.dns.records.list(zone_id=zone_id)
+    except cloudflare._exceptions.APIError as e:
+        raise RuntimeError(f"Cloudflare API-Fehler bei der Abfrage von DNS-Records: {e}")
 
-def update_dns_records(cf: CloudFlare.CloudFlare, zone_id: str, ip_address: str) -> None:
-    """
-    Updates all DNS A records in the given zone to the specified IP address.
-    :param cf: CloudFlare API client.
-    :param zone_id: The ID of the DNS zone.
-    :param ip_address: The new IP address to set for A records.
-    """
-    try:
-        dns_records = cf.zones.dns_records.get(zone_id, params={'type': 'A'})
-    except CloudFlare.exceptions.CloudFlareAPIError as e:
-        raise RuntimeError(f"CloudFlare API error while fetching DNS records: {e}")
+    for record in dns_records.result:
+        if record.type != "A":
+            continue  # Nur A-Records aktualisieren
 
-    for record in dns_records:
-        if record['content'] == ip_address:
-            file_log(f"UNCHANGED: {record['name']} already points to {ip_address}.")
+        if record.content == ip_address:
+            file_log(f"UNCHANGED: {record.name} zeigt bereits auf {ip_address}.")
             continue
 
         updated_record = {
-            'type': 'A',
-            'name': record['name'],
+            'zone_id': zone_id,
             'content': ip_address,
-            'proxied': record.get('proxied', False)
+            'name': record.name,
+            'type': record.type,
+            'proxied': record.proxied
         }
 
         try:
-            cf.zones.dns_records.put(zone_id, record['id'], data=updated_record)
-            file_log(f"UPDATED: {record['name']} -> {ip_address}.")
-        except CloudFlare.exceptions.CloudFlareAPIError as e:
-            file_log(f"ERROR: Failed to update {record['name']} - {e}.")
-
-def load_api_token(zone_name: str) -> Optional[str]:
-    """
-    Loads the Cloudflare API token from environment variables based on the zone name.
-    :param zone_name: The name of the DNS zone.
-    :return: The API token or None if not found.
-    """
-    env_var_name = f"CLOUDFLARE_TOKEN_{zone_name.replace('.', '_').upper()}"
-    return os.environ.get(env_var_name)
+            cf.dns.records.update(dns_record_id=record.id, **updated_record)
+            file_log(f"UPDATED: {record.name} -> {ip_address}.")
+            updated_any = True
+        except cloudflare._exceptions.APIError as e:
+            file_log(f"ERROR: Aktualisierung von {record.name} fehlgeschlagen - {e}.")
+    return updated_any
 
 def main() -> None:
     """
-    Main function to update Cloudflare DNS records based on command-line arguments.
+    Hauptfunktion zur Aktualisierung der Cloudflare DNS-Records.
     """
+    '''
     if len(sys.argv) != 5:
         sys.stderr.write("Usage: update.py <username> <password> <domain> <ip_address>\n")
         file_log("ERROR: Incorrect number of arguments.")
         sys.exit(1)
+    '''
 
     username, password, domain, ip_address = sys.argv[1:5]
 
     # Validate the IP address
-    if not validate_ip(ip_address):
-        file_log(f"ERROR: Invalid IP address: {ip_address}")
-        sys.stderr.write(f"ERROR: Invalid IP address: {ip_address}\n")
+    if not ip_address or not validate_ip(ip_address):
+        file_log(f"ERROR: Ungültige oder fehlende IP-Adresse: {ip_address}")
+        sys.stderr.write(f"ERROR: Ungültige oder fehlende IP-Adresse: {ip_address}\n")
         sys.exit(1)
-
-    # Load the API token for the domain
-    api_token = load_api_token(domain)
-    if not api_token:
-        file_log(f"ERROR: API token not found for domain {domain}.")
-        sys.stderr.write(f"ERROR: API token not found for domain {domain}.\n")
-        sys.exit(1)
-
-    cf = CloudFlare.CloudFlare(token=api_token)
 
     try:
+        # Lade notwendige Umgebungsvariablen
+        API_TOKEN = load_env_variable("API_TOKEN")
+        ZONE_ID = load_env_variable("ZONE_ID")
+        
+        cf = Cloudflare(api_token=API_TOKEN)
+
         file_log(f"STARTING UPDATE: {domain}")
-        zone = get_zone(cf, domain)
-        update_dns_records(cf, zone['id'], ip_address)
-        file_log(f"COMPLETED UPDATE: {domain}")
+        if update_dns_records(cf, ZONE_ID, ip_address):
+            file_log(f"COMPLETED UPDATE: {domain}")
+        else:
+            file_log(f"NO CHANGES MADE: {domain}")
     except Exception as e:
-        file_log(f"ERROR: {e}")
+        log_error(e)
         sys.stderr.write(f"ERROR: {e}\n")
         sys.exit(1)
-
-    file_log("==============================================================")
-    sys.exit(0)
+    finally:
+        file_log("==============================================================")
+        sys.exit(0)
 
 if __name__ == '__main__':
     main()
+
