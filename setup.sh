@@ -4,8 +4,8 @@
 set -e
 
 # === Variablen ===
-DOMAIN="pingel-ai-solutions.de"               # Muss angepasst werden
-FRITZBOX_IP_ADDRESS="192.168.178.1"           # Muss angepasst werden
+DOMAIN="meine-domain.de"                      # Muss angepasst werden
+FRITZBOX_IP_ADDRESS="XXX.XXX.XXX.XXX"         # Muss angepasst werden
 WEBROOT="/var/www/${DOMAIN}"
 NGINX_CONF="/etc/nginx/sites-available/${DOMAIN}.conf"
 SYMLINK_PATH="/etc/nginx/sites-enabled/${DOMAIN}.conf"
