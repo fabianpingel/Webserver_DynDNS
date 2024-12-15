@@ -8,7 +8,7 @@ git clone https://github.com/fabianpingel/Webserver_DynDNS.git Webserver_DynDNS
 ```
 chmod +x setup.sh && sudo ./setup.sh
 ```
-## 3. Einfügen des ```CLOUDFLARE_API_TOKEN```
+## 3. Erstellen der ```Umgebungsvariablen```
 3.1. Erstellen der ```.env```-Datei:
 ```
 sudo touch /opt/scripts/dyndns/.env
@@ -17,7 +17,10 @@ sudo touch /opt/scripts/dyndns/.env
 ```
 sudo nano /opt/scripts/dyndns/.env
 ```
-3.3 API-Token einfügen
+3.3 Token einfügen
 ```
-CLOUDFLARE_API_TOKEN=dein_cloudflare_token
+API_TOKEN=dein_cloudflare_token
+```
+```
+ZONE_ID =deine_cloudflare_zonen_id
 ```
