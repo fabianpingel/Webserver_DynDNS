@@ -6,7 +6,7 @@ git clone https://github.com/fabianpingel/Webserver_DynDNS.git Webserver_DynDNS
 ```
 ## 2. Skript *setup.sh* ausführen
 ```
-chmod +x setup.sh && sudo ./setup.sh
+chmod +x setup.sh && sudo ./setup.sh <meine-domain.de>
 ```
 ## 3. Erstellen der ```Umgebungsvariablen```
 3.1. Erstellen der ```.env```-Datei:
