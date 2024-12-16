@@ -99,12 +99,10 @@ def main() -> None:
     """
     Hauptfunktion zur Aktualisierung der Cloudflare DNS-Records.
     """
-    '''
     if len(sys.argv) != 5:
         sys.stderr.write("Usage: update.py <username> <password> <domain> <ip_address>\n")
-        file_log("ERROR: Incorrect number of arguments.")
+        file_log("ERROR: Falsche Anzahl von Argumenten.")
         sys.exit(1)
-    '''
 
     username, password, domain, ip_address = sys.argv[1:5]
 
