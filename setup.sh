@@ -3,9 +3,22 @@
 # Sofortiges Beenden, wenn ein Befehl fehlschlägt
 set -e
 
+# Überprüfen, ob dpkg korrekt arbeitet
+if ! sudo dpkg --configure -a >/dev/null 2>&1; then
+    echo "Fehler: dpkg ist blockiert. Bitte führen Sie 'sudo dpkg --configure -a' manuell aus und starten Sie das Skript neu."
+    exit 1
+fi
+
+# === Prüfen auf Domain-Eingabe ===
+if [ -z "$1" ]; then
+    echo "Fehler: Bitte geben Sie eine Domain als ersten Parameter an."
+    echo "Beispiel: $0 meine-domain.de"
+    exit 1
+fi
+
 # === Variablen ===
-DOMAIN="meine-domain.de"                      # Muss angepasst werden
-FRITZBOX_IP_ADDRESS="XXX.XXX.XXX.XXX"         # Muss angepasst werden
+DOMAIN="$1"                                   # Muss bei Aufruf eingegeben werden
+FRITZBOX_IP_ADDRESS="192.168.178.1"           # Werkseinstellung FRITZ!Box, muss ggf. angepasst werden
 WEBROOT="/var/www/${DOMAIN}"
 NGINX_CONF="/etc/nginx/sites-available/${DOMAIN}.conf"
 SYMLINK_PATH="/etc/nginx/sites-enabled/${DOMAIN}.conf"
@@ -107,8 +120,11 @@ pip3 install cloudflare python-dotenv || handle_error "Python-Bibliotheken konnt
 # === .env Datei ===
 echo "=== .env Datei überprüfen/erstellen ==="
 if [[ ! -f "${ENV_FILE}" ]]; then
-    echo "CLOUDFLARE_API_TOKEN=dein_cloudflare_token" | sudo tee "${ENV_FILE}" > /dev/null || handle_error ".env Datei konnte nicht erstellt werden"
-    echo ".env Datei wurde erstellt. Bitte den Token anpassen."
+    cat <<EOL | sudo tee "${ENV_FILE}" > /dev/null
+API_TOKEN=dein_cloudflare_api_token
+ZONE_ID=deine_zonen_id
+EOL
+    echo ".env Datei wurde erstellt. Bitte die Werte anpassen."
     sudo nano "${ENV_FILE}"
 else
     echo ".env Datei existiert bereits. Öffne zur Überprüfung."
