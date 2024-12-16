@@ -19,8 +19,8 @@ sudo nano /opt/scripts/dyndns/.env
 ```
 3.3 Token einfügen
 ```
-API_TOKEN=dein_cloudflare_token
+API_TOKEN=dein_cloudflare_api_token
 ```
 ```
-ZONE_ID =deine_cloudflare_zonen_id
+ZONE_ID =deine_zonen_id
 ```
